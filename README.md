@@ -121,7 +121,7 @@ redo stack: 0 items
 
 ### Undo Stack <T>
 
-we support both `basic` and `advanced undo
+we support both `basic` and `advanced` undo
 
 obtained via `undoStack`, an `UndoStackHolder` ensures the stack itself is not assigned, similar to a `get-only` property
 
