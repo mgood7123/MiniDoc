@@ -2,40 +2,9 @@
 
 #include <stdlib.h> // malloc.h is not portable
 #include <cstring> // strlen
+#include <hexdump.hpp>
 
 namespace MiniDoc {
-  
-  void MiniDoc::push_undo() {
-    undo_stack.push_back(info);
-    if (redo_stack.size() != 0) {
-      undo_stack.insert(undo_stack.end(), redo_stack.rbegin(), redo_stack.rend()-1);
-      undo_stack.insert(undo_stack.end(), redo_stack.begin(), redo_stack.end());
-      redo_stack = {};
-      undo_stack.push_back(info);
-    }
-  }
-  
-  bool MiniDoc::undo() {
-    if (undo_stack.size() == 0) {
-      return false;
-    }
-    auto & p = undo_stack.back();
-    redo_stack.push_back(info);
-    info = p;
-    undo_stack.pop_back();
-    return true;
-  }
-  
-  bool MiniDoc::redo() {
-    if (redo_stack.size() == 0) {
-      return false;
-    }
-    auto & p = redo_stack.back();
-    undo_stack.push_back(info);
-    info = p;
-    redo_stack.pop_back();
-    return true;
-  }
   
   MiniDoc::MiniDoc() {
     load("");
@@ -58,7 +27,7 @@ namespace MiniDoc {
   }
   
   void MiniDoc::insert(size_t pos, const char * str) {
-    push_undo();
+    stack.push_undo();
     info.piece.insert(pos == -1 ? info.length_ : pos >= info.length_ ? info.length_ : pos, str);
     info.updateLength();
   }
@@ -68,26 +37,36 @@ namespace MiniDoc {
   }
   
   void MiniDoc::replace(size_t pos, size_t len, const char * str) {
-    push_undo();
+    stack.push_undo();
     auto p = pos == -1 ? info.length_ : pos >= info.length_ ? info.length_ : pos;
-    info.piece.erase(p, p+len);
+    if (p != info.length_) {
+      auto l = len == -1 ? (info.length_ - p)+1 : p + len >= info.length_ ? (info.length_ - p)+1 : p + len;
+      if (l != 0) {
+        info.piece.erase(p, l);
+      }
+    }
     info.piece.insert(p, str);
     info.updateLength();
   }
   
   void MiniDoc::erase(size_t pos, size_t len) {
-    push_undo();
+    stack.push_undo();
     auto p = pos == -1 ? info.length_ : pos >= info.length_ ? info.length_ : pos;
-    info.piece.erase(p, p+len);
-    info.updateLength();
+    if (p != info.length_) {
+      auto l = len == -1 ? (info.length_ - p)+1 : p + len >= info.length_ ? (info.length_ - p)+1 : p + len;
+      if (l != 0) {
+        info.piece.erase(p, l);
+        info.updateLength();
+      }
+    }
   }
   
   void MiniDoc::Info::updateLineInfo() {
     line_ = piece.get_line(cursor_);
-    line_start_ = piece.line_start(line_);
-    line_end_ = piece.line_end(line_);
+    line_start_ = piece.line_start_cached(line_);
+    line_end_ = piece.line_end_cached(line_);
     line_length_ = line_end_ - line_start_;
-    if (line_ == piece.lines()) {
+    if (line_ == piece.lines_cached()) {
       line_end_--;
       line_length_--;
     }
@@ -97,7 +76,7 @@ namespace MiniDoc {
   
   void MiniDoc::Info::updateLength() {
     updateLineInfo();
-    length_ = piece.length();
+    length_ = piece.length_cached();
     if (length_ > 0) {
       length_--;
     }
@@ -105,7 +84,7 @@ namespace MiniDoc {
   
   void MiniDoc::load(const char* stream, size_t length) {
     info = {};
-    resetUndoRedoStack();
+    stack.reset();
     
     if (length == 0) {
       info.piece.append_origin("\n", 1);
@@ -125,6 +104,9 @@ namespace MiniDoc {
     if (pos == -1) {
       pos = info.length_;
     }
+    if (pos > info.length_) {
+      pos = info.length_;
+    }
     if (pos > info.cursor_) {
       while (pos != info.cursor_) {
         next();
@@ -136,30 +118,30 @@ namespace MiniDoc {
     }
   }
   
-  bool MiniDoc::hasNext() {
+  bool MiniDoc::has_next() const {
     return info.cursor_ <= info.length_;
   }
   
-  bool MiniDoc::next() {
-    if (hasNext()) {
+  char MiniDoc::next() {
+    char ch = character();
+    if (has_next()) {
       info.cursor_++;
       info.updateLineInfo();
-      return true;
     }
-    return false;
+    return ch;
   }
   
-  bool MiniDoc::hasPrevious() {
+  bool MiniDoc::has_previous() const {
     return info.cursor_ != 0;
   }
   
-  bool MiniDoc::previous() {
-    if (hasPrevious()) {
+  char MiniDoc::previous() {
+    char ch = character();
+    if (has_previous()) {
       info.cursor_--;
       info.updateLineInfo();
-      return true;
     }
-    return false;
+    return ch;
   }
   
   char tmp[2];
@@ -180,11 +162,11 @@ namespace MiniDoc {
     }
   }
   
-  void MiniDoc::Info::print() {
+  void MiniDoc::Info::print() const {
     print("");
   }
   
-  void MiniDoc::Info::print(const char * indent) {
+  void MiniDoc::Info::print(const char * indent) const {
     const char * i = indent == nullptr ? "" : indent;
     printf("%slength: %zu\n", i, length_);
     printf("%scursor: %zu\n", i, cursor_);
@@ -195,108 +177,173 @@ namespace MiniDoc {
     printf("%scolumn: %zu\n", i, column_);
     auto s = line_str();
     printf("%sline str: %s\n", i, s.c_str());
+    printf("%sline str size: %zu\n", i, s.size());
+    printf("%sline str len: %zu\n", i, s.length());
+    printf("%sline str hex\n", i);
+    std::cout << CustomHexdump<8, true>("        ", s.c_str(), s.size()) << std::endl;
     printf("%scharacter:  '%s'\n", i, charToString(character_));
   }
   
-  char MiniDoc::Info::character() {
+  char MiniDoc::Info::character() const {
     return character_;
   }
-  size_t MiniDoc::Info::cursor() {
+  size_t MiniDoc::Info::cursor() const {
     return cursor_;
   }
-  size_t MiniDoc::Info::line_start(){
+  size_t MiniDoc::Info::line_start() const {
     return line_start_;
   }
-  size_t MiniDoc::Info::line_end(){
+  size_t MiniDoc::Info::line_end() const {
     return line_end_;
   }
-  size_t MiniDoc::Info::line_length(){
+  size_t MiniDoc::Info::line_length() const {
     return line_length_;
   }
-  size_t MiniDoc::Info::line(){
+  size_t MiniDoc::Info::line() const {
     return line_;
   }
-  size_t MiniDoc::Info::column(){
+  size_t MiniDoc::Info::column() const {
     return column_;
   }
-  size_t MiniDoc::Info::length(){
+  size_t MiniDoc::Info::length() const {
     return length_;
   }
-  char MiniDoc::character() {
+  char MiniDoc::character() const {
     return info.character();
   }
-  size_t MiniDoc::cursor() {
+  size_t MiniDoc::cursor() const {
     return info.cursor();
   }
-  size_t MiniDoc::line_start(){
+  size_t MiniDoc::line_start() const {
     return info.line_start();
   }
-  size_t MiniDoc::line_end(){
+  size_t MiniDoc::line_end() const {
     return info.line_end();
   }
-  size_t MiniDoc::line_length(){
+  size_t MiniDoc::line_length() const {
     return info.line_length();
   }
-  size_t MiniDoc::line(){
+  size_t MiniDoc::line() const {
     return info.line();
   }
-  size_t MiniDoc::column(){
+  size_t MiniDoc::column() const {
     return info.column();
   }
-  size_t MiniDoc::length(){
+  size_t MiniDoc::length() const {
     return info.length();
   }
   
-  std::string MiniDoc::Info::line_str() {
-    return piece.range_string(line_start_, line_end_);
+  void MiniDoc::Info::line_str(std::string & out) const {
+    piece.range_string(line_start_, line_end_, out);
   }
-  std::string MiniDoc::line_str() {
-    return info.line_str();
+  void MiniDoc::Info::line_str(std::string & out, std::function<void(std::string & out, const char *string, size_t length)> func) const {
+    piece.range_string_func(line_start_, line_end_, out, func);
+  }
+  std::string MiniDoc::Info::line_str() const {
+    std::string s;
+    line_str(s);
+    return s;
+  }
+  std::string MiniDoc::Info::line_str(std::function<void(std::string & out, const char *string, size_t length)> func) const {
+    std::string s;
+    line_str(s, func);
+    return s;
   }
   
-  std::string MiniDoc::Info::str() {
-    return piece.range_string(0, length_);
+  void MiniDoc::line_str(std::string & out) const {
+    info.line_str(out);
   }
-  std::string MiniDoc::str() {
-    return info.str();
+  void MiniDoc::line_str(std::string & out, std::function<void(std::string & out, const char *string, size_t length)> func) const {
+    info.line_str(out, func);
+  }
+  std::string MiniDoc::line_str() const {
+    std::string s;
+    line_str(s);
+    return s;
+  }
+  std::string MiniDoc::line_str(std::function<void(std::string & out, const char *string, size_t length)> func) const {
+    std::string s;
+    line_str(s, func);
+    return s;
   }
   
-  std::string MiniDoc::Info::sub_str(size_t pos, size_t len) {
+  void MiniDoc::Info::str(std::string & out) const {
+    piece.range_string(0, length_, out);
+  }
+  void MiniDoc::Info::str(std::string & out, std::function<void(std::string & out, const char *string, size_t length)> func) const {
+    piece.range_string_func(0, length_, out, func);
+  }
+  std::string MiniDoc::Info::str() const {
+    std::string s;
+    str(s);
+    return s;
+  }
+  std::string MiniDoc::Info::str(std::function<void(std::string & out, const char *string, size_t length)> func) const {
+    std::string s;
+    str(s, func);
+    return s;
+  }
+  
+  void MiniDoc::str(std::string & out) const {
+    info.str(out);
+  }
+  void MiniDoc::str(std::string & out, std::function<void(std::string & out, const char *string, size_t length)> func) const {
+    info.str(out, func);
+  }
+  std::string MiniDoc::str() const {
+    std::string s;
+    str(s);
+    return s;
+  }
+  std::string MiniDoc::str(std::function<void(std::string & out, const char *string, size_t length)> func) const {
+    std::string s;
+    str(s, func);
+    return s;
+  }
+  
+  void MiniDoc::Info::sub_str(size_t pos, size_t len, std::string & out) const {
     auto p = pos == -1 ? length_ : pos >= length_ ? length_ : pos;
-    return piece.range_string(p, p+len);
+    piece.range_string(p, p+len, out);
   }
-  std::string MiniDoc::sub_str(size_t pos, size_t len) {
-    return info.sub_str(pos, len);
+  void MiniDoc::Info::sub_str(size_t pos, size_t len, std::string & out, std::function<void(std::string & out, const char *string, size_t length)> func) const {
+    auto p = pos == -1 ? length_ : pos >= length_ ? length_ : pos;
+    piece.range_string_func(p, p+len, out, func);
+  }
+  std::string MiniDoc::Info::sub_str(size_t pos, size_t len) const {
+    std::string s;
+    sub_str(pos, len, s);
+    return s;
+  }
+  std::string MiniDoc::Info::sub_str(size_t pos, size_t len, std::function<void(std::string & out, const char *string, size_t length)> func) const {
+    std::string s;
+    sub_str(pos, len, s, func);
+    return s;
   }
   
-  void MiniDoc::resetUndoRedoStack() {
-    undo_stack = {};
-    redo_stack = {};
+  void MiniDoc::sub_str(size_t pos, size_t len, std::string & out) const {
+    info.sub_str(pos, len, out);
+  }
+  void MiniDoc::sub_str(size_t pos, size_t len, std::string & out, std::function<void(std::string & out, const char *string, size_t length)> func) const {
+    info.sub_str(pos, len, out, func);
+  }
+  std::string MiniDoc::sub_str(size_t pos, size_t len) const {
+    std::string s;
+    sub_str(pos, len, s);
+    return s;
+  }
+  std::string MiniDoc::sub_str(size_t pos, size_t len, std::function<void(std::string & out, const char *string, size_t length)> func) const {
+    std::string s;
+    sub_str(pos, len, s, func);
+    return s;
   }
   
-  void MiniDoc::print() {
+  UndoStackHolder<MiniDoc::MiniDoc::Info> MiniDoc::undoStack() {
+    return stack;
+  }
+  
+  void MiniDoc::print() const {
     info.print();
-    size_t s;
-    printf("undo stack: %zu items\n", undo_stack.size());
-    if (undo_stack.size() != 0) {
-      s = 0;
-      for (auto & i : undo_stack) {
-        printf("\n  undo #%zu\n", s);
-        i.print("    ");
-        s++;
-      }
-      printf("\n\n");
-    }
-    printf("redo stack: %zu items\n", redo_stack.size());
-    if (redo_stack.size() != 0) {
-      s = 0;
-      for (auto & i : redo_stack) {
-        printf("\n  redo #%zu\n", s);
-        i.print("    ");
-        s++;
-      }
-      printf("\n\n");
-    }
+    stack.print([](const Info & i) { i.print("    "); });
     printf("\n");
   }
 }

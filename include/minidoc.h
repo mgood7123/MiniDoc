@@ -1,35 +1,13 @@
 #ifndef MINIDOC_H
 #define MINIDOC_H
 
-#include <stdio.h>
 #include <cstddef> // std::nullopt_t
 
-#include <stdbool.h>
-#include <string.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <limits.h>
-
-#include <iostream>
-#include <set>
-#include <functional>
-#include <string>
-#include <vector>
-#include <memory>
-#include <algorithm>
-
-#include <deque>
-
-#ifdef GTEST_API_
-#define MINIDOC_GTEST public:
-#else
-#define MINIDOC_GTEST private:
-#endif
+#include "cache.h"
+#include "piece.h"
+#include "undo.h"
 
 namespace MiniDoc {
-  
-  #include "piece.h"
-  
   class MiniDoc {
     public:
     class Info {
@@ -48,60 +26,77 @@ namespace MiniDoc {
       void updateLength();
       
       public:
-      char character();
-      size_t cursor();
-      size_t line_start();
-      size_t line_end();
-      size_t line_length();
-      size_t line();
-      size_t column();
-      size_t length();
-      std::string line_str();
-      std::string str();
-      std::string sub_str(size_t pos, size_t len);
-      void print();
-      void print(const char * indent);
+      char character() const;
+      size_t cursor() const;
+      size_t line_start() const;
+      size_t line_end() const;
+      size_t line_length() const;
+      size_t line() const;
+      size_t column() const;
+      size_t length() const;
+      
+      void line_str(std::string & out) const;
+      void line_str(std::string & out, std::function<void(std::string & out, const char *string, size_t length)> func) const;
+      std::string line_str() const;
+      std::string line_str(std::function<void(std::string & out, const char *string, size_t length)> func) const;
+      
+      void str(std::string & out) const;
+      void str(std::string & out, std::function<void(std::string & out, const char *string, size_t length)> func) const;
+      std::string str() const;
+      std::string str(std::function<void(std::string & out, const char *string, size_t length)> func) const;
+      
+      void sub_str(size_t pos, size_t len, std::string & out) const;
+      void sub_str(size_t pos, size_t len, std::string & out, std::function<void(std::string & out, const char *string, size_t length)> func) const;
+      std::string sub_str(size_t pos, size_t len) const;
+      std::string sub_str(size_t pos, size_t len, std::function<void(std::string & out, const char *string, size_t length)> func) const;
+      
+      void print() const;
+      void print(const char * indent) const;
     };
     
-    MINIDOC_GTEST
+    private:
     
     Info info;
-    
-    // undo/redo stack
-    // supports advanced undo/redo
-    std::deque<Info> undo_stack;
-    std::deque<Info> redo_stack;
-    
-    void push_undo();
+    UndoStack<Info> stack = info;
     
     
     public:
-    bool undo();
-    bool redo();
     MiniDoc();
     void load(std::nullptr_t stream, size_t length);
     void load(std::nullptr_t stream);
     void load(const char * stream, size_t length);
     void load(const char * stream);
     void seek(size_t pos);
-    bool hasNext();
-    bool next();
-    bool hasPrevious();
-    bool previous();
+    bool has_next() const;
+    char next();
+    bool has_previous() const;
+    char previous();
     
-    char character();
-    size_t cursor();
-    size_t line_start();
-    size_t line_end();
-    size_t line_length();
-    size_t line();
-    size_t column();
-    size_t length();
-    std::string line_str();
-    std::string str();
-    std::string sub_str(size_t pos, size_t len);
+    char character() const;
+    size_t cursor() const;
+    size_t line_start() const;
+    size_t line_end() const;
+    size_t line_length() const;
+    size_t line() const;
+    size_t column() const;
+    size_t length() const;
     
-    void resetUndoRedoStack();
+    void line_str(std::string & out) const;
+    void line_str(std::string & out, std::function<void(std::string & out, const char *string, size_t length)> func) const;
+    std::string line_str() const;
+    std::string line_str(std::function<void(std::string & out, const char *string, size_t length)> func) const;
+    
+    void str(std::string & out) const;
+    void str(std::string & out, std::function<void(std::string & out, const char *string, size_t length)> func) const;
+    std::string str() const;
+    std::string str(std::function<void(std::string & out, const char *string, size_t length)> func) const;
+    
+    void sub_str(size_t pos, size_t len, std::string & out) const;
+    void sub_str(size_t pos, size_t len, std::string & out, std::function<void(std::string & out, const char *string, size_t length)> func) const;
+    std::string sub_str(size_t pos, size_t len) const;
+    std::string sub_str(size_t pos, size_t len, std::function<void(std::string & out, const char *string, size_t length)> func) const;
+    
+    UndoStackHolder<Info> undoStack();
     
     void append(const char * str);
     void insert(size_t pos, const char * str);
@@ -109,8 +104,7 @@ namespace MiniDoc {
     void replace(size_t pos, size_t len, const char * str);
     void erase(size_t pos, size_t len);
     
-    void print();
-    
+    void print() const;
   };
 }
 #endif

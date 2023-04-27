@@ -143,7 +143,7 @@ rebuild_test_release_valgrind:
 	make clean_release
 	make test_release_valgrind
 
-gdb_flags = -ex='set confirm on' -ex=run -ex=quit --quiet
+gdb_flags = -ex='set confirm on' --quiet
 
 test_gdb: test_debug_gdb test_debug_asan_gdb test_release_gdb
 rebuild_test_gdb: rebuild_test_debug_gdb rebuild_test_debug_asan_gdb rebuild_test_release_gdb
@@ -169,9 +169,9 @@ rebuild_test_release_gdb:
 	make clean_release_asan
 	make test_release_gdb
 
-lldb_flags = -o r -o q
+lldb_flags = 
 
-test_gdb: test_debug_lldb test_debug_asan_lldb test_release_lldb
+test_lldb: test_debug_lldb test_debug_asan_lldb test_release_lldb
 rebuild_test_gdb: rebuild_test_debug_lldb rebuild_test_debug_asan_lldb rebuild_test_release_lldb
 
 test_debug_lldb: debug
