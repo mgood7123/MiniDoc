@@ -8,9 +8,19 @@ see minidoc.h for details
 
 ## basic usage
 
-load a character stream `const char*` and an optional length `size_t`
+load a character stream `const char*` and an optional length `size_t`, the input `is not copied`
 
-for insert, replace, and erase operations, position 0 represents index 0, for zero based index, just like a C array
+all modifications done to the document are reflected in the obtained output
+
+use `sub_str` to copy a range of the output, best used for copying output in chunks, best used for large documents 
+
+use `str` to copy the entire output, best used for small documents
+
+use `line` to copy the specified line of the output, best used for line-by-line output
+
+use `seek` and `character` to obtain the character at the specified position
+
+for `insert`, `replace`, and `erase` operations, position 0 represents index 0, for zero based index, just like a C array
 
 the position and length are clamped to the bounds of the document (0 to length) in respect to all current modifications done to the document
 
