@@ -67,7 +67,6 @@ int main() {
   puts("undo");
   m.undoStack().undo();
   m.print();
-  m.print();
   
   m.load("apple");
   m.append("ban");

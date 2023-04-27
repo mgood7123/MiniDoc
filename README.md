@@ -118,3 +118,98 @@ undo stack: 1 items
 
 redo stack: 0 items
 ```
+
+### Undo Stack <T>
+
+we support both `basic` and `advanced undo
+
+obtained via `undoStack`, an `UndoStackHolder` ensures the stack itself is not assigned, similar to a `get-only` property
+
+set `supports_redo` to specify if `redo` should be tracked
+
+set `supports_advanced_undo` to toggle between `basic` and `advanced` undo
+
+use `push_undo` to push an `undo` state before modification
+
+use `undo` and `redo` to iterate between these `states`
+
+#### Basic
+in `basic` mode, we mimic most/all modern editors:
+
+any edit `erases` the `redo` stack
+
+all `redo states` are `lost` if you `undo` then `push_undo`
+
+#### Advanced
+in `advanced` mode, we fully preserve the `undo/redo` stack upon edit
+
+any edit `preserves` the `redo` stack
+
+all `redo states` are `preserved` if you `undo` then `push_undo`
+
+#### example
+
+```
+  m.load("");
+  m.append("A");
+  // the current undo stack is as follows
+  // ""
+  // the current redo stack is as follows
+  //
+  m.append("B");
+  // the current undo stack is as follows
+  // "A" > ""
+  // the current redo stack is as follows
+  //
+  m.append("C");
+  // the current undo stack is as follows
+  // "AB" > "A" > ""
+  // the current redo stack is as follows
+  //
+  m.undoStack().undo();
+  // the current undo stack is as follows
+  // "AB" > "A" > ""
+  // the current redo stack is as follows
+  // "ABC"
+  m.undoStack().undo();
+  // the current undo stack is as follows
+  // "A" > ""
+  // the current redo stack is as follows
+  // "AB" > "ABC"
+  m.undoStack().undo();
+  // the current undo stack is as follows
+  // ""
+  // the current redo stack is as follows
+  // "A" > "AB" > "ABC"
+  
+  // we are now at empty input
+  
+  m.append("X");
+  
+  // in basic, an edit would not be able to recover "A"
+  // due to the redo stack that contains A, AB, and ABC
+  // being erased
+  //
+  // the current undo stack is as follows
+  // ""
+  // the current redo stack is as follows
+  //
+  
+  // in advance, an edit would preserve this information
+  //
+  // the current undo stack is as follows
+  // "" > "A" > "AB" > "ABC" > "AB" > "A" > ""
+  // the current redo stack is as follows
+  //
+  
+  m.undoStack().undo();
+  // the current undo stack is as follows BASIC
+  // ""
+  // the current redo stack is as follows BASIC
+  // "X"
+  //
+  // the current undo stack is as follows ADVANCED
+  // "" > "A" > "AB" > "ABC" > "AB" > "A" > ""
+  // the current redo stack is as follows ADVANCED
+  // "X"
+```
