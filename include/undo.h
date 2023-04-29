@@ -20,6 +20,14 @@ namespace MiniDoc {
     
     UndoStack(T & ref) : ref(&ref) {};
     
+    size_t undoSize() {
+        return undo_stack.size();
+    }
+    
+    size_t redoSize() {
+        return redo_stack.size();
+    }
+    
     void push_undo() {
       undo_stack.push_back(*ref);
       if (supports_redo) {
@@ -112,6 +120,14 @@ namespace MiniDoc {
     
     bool & supports_redo;
     bool & supports_advanced_undo;
+    
+    size_t undoSize() {
+        return ref->undoSize();
+    }
+    
+    size_t redoSize() {
+        return ref->redoSize();
+    }
     
     void push_undo() {
       ref->push_undo();
