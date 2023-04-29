@@ -34,25 +34,25 @@ namespace MiniDoc {
     }
     
     CacheInvalidator(const CacheInvalidator&copy) {
-      puts("CacheInvalidator COPY");
+      //puts("CacheInvalidator COPY");
     }
     CacheInvalidator(const CacheInvalidator&&move) {
-      puts("CacheInvalidator MOVE");
+      //puts("CacheInvalidator MOVE");
     }
     CacheInvalidator&operator=(const CacheInvalidator&copy) {
-      puts("CacheInvalidator ASSIGN COPY");
+      //puts("CacheInvalidator ASSIGN COPY");
       return *this;
     }
     const CacheInvalidator&operator=(const CacheInvalidator&copy) const {
-      puts("CacheInvalidator ASSIGN COPY CONST");
+      //puts("CacheInvalidator ASSIGN COPY CONST");
       return *this;
     }
     CacheInvalidator&operator=(const CacheInvalidator&&move) {
-      puts("CacheInvalidator ASSIGN MOVE");
+      //puts("CacheInvalidator ASSIGN MOVE");
       return *this;
     }
     const CacheInvalidator&operator=(const CacheInvalidator&&move) const {
-      puts("CacheInvalidator MOVE ASSIGN CONST");
+      //puts("CacheInvalidator MOVE ASSIGN CONST");
       return *this;
     }
   };
@@ -82,10 +82,10 @@ namespace MiniDoc {
         invalidated_misses++;
         value = getter();
         invalidated = false;
-        printf("CacheArgs (name: %s) miss, invalidated\n", name);
+        //printf("CacheArgs (name: %s) miss, invalidated\n", name);
       } else {
         hits++;
-        printf("CacheArgs (name: %s) hit\n", name);
+        //printf("CacheArgs (name: %s) hit\n", name);
       }
       return value;
     }
@@ -98,7 +98,7 @@ namespace MiniDoc {
     }
     
     ~CacheNoArgs() {
-      printf("CacheNoArgs (name: %s) hits: %d, inval misses: %d\n", name == nullptr ? "default" : name, hits, invalidated_misses);
+      //printf("CacheNoArgs (name: %s) hits: %d, inval misses: %d\n", name == nullptr ? "default" : name, hits, invalidated_misses);
     }
   };
   
@@ -127,16 +127,16 @@ namespace MiniDoc {
         value = getter(args...);
         invalidated = false;
         invalidated_misses++;
-        printf("CacheArgs (name: %s) miss, invalidated\n", name);
+        //printf("CacheArgs (name: %s) miss, invalidated\n", name);
       } else {
         std::tuple<const Args & ...> a {args...};
         if (dep != a) {
           dep = a;
           value = getter(args...);
           argument_misses++;
-          printf("CacheArgs (name: %s) miss,  different args\n", name);
+          //printf("CacheArgs (name: %s) miss,  different args\n", name);
         } else {
-          printf("CacheArgs (name: %s) hit\n", name);
+          //printf("CacheArgs (name: %s) hit\n", name);
           hits++;
         }
       }
@@ -151,7 +151,7 @@ namespace MiniDoc {
     }
     
     ~CacheArgs() {
-      printf("CacheArgs (name: %s) hits: %d, misses: %d, inval misses: %d\n", name == nullptr ? "default" : name, hits, argument_misses, invalidated_misses);
+      //printf("CacheArgs (name: %s) hits: %d, misses: %d, inval misses: %d\n", name == nullptr ? "default" : name, hits, argument_misses, invalidated_misses);
     }
   };
   

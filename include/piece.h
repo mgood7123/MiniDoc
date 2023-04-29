@@ -32,7 +32,7 @@ namespace MiniDoc {
     using iter_t = typename std::set<Piece>::iterator;
     
     PieceTable() {
-      puts("PieceTable ctor");
+      //puts("PieceTable ctor");
       m_buffers.resize(2);
     }
     
