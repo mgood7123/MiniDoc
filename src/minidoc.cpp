@@ -28,6 +28,7 @@ namespace MiniDoc {
   
   void MiniDoc::insert(size_t pos, const char * str) {
     stack.push_undo();
+    // stay inside bounds 0 to length_
     info.piece.insert(pos == -1 ? info.length_ : pos >= info.length_ ? info.length_ : pos, str);
     info.updateLength();
   }
@@ -38,9 +39,11 @@ namespace MiniDoc {
   
   void MiniDoc::replace(size_t pos, size_t len, const char * str) {
     stack.push_undo();
-    auto p = pos == -1 ? info.length_ : pos >= info.length_ ? info.length_ : pos;
+    // stay inside bounds 0 to length_
+    size_t p = pos < 0 ? info.length_ : pos >= info.length_ ? info.length_ : pos;
     if (p != info.length_) {
-      auto l = len == -1 ? (info.length_ - p)+1 : p + len >= info.length_ ? (info.length_ - p)+1 : p + len;
+      // stay inside bounds 0 to length_
+      size_t l = len == -1 ? info.length_ : p + len >= info.length_ ? info.length_ : p + len;
       if (l != 0) {
         info.piece.erase(p, l);
       }
@@ -51,9 +54,13 @@ namespace MiniDoc {
   
   void MiniDoc::erase(size_t pos, size_t len) {
     stack.push_undo();
-    auto p = pos == -1 ? info.length_ : pos >= info.length_ ? info.length_ : pos;
+    
+    // stay inside bounds 0 to length_
+    size_t p = pos == -1 ? info.length_ : pos >= info.length_ ? info.length_ : pos;
     if (p != info.length_) {
-      auto l = len == -1 ? (info.length_ - p)+1 : p + len >= info.length_ ? (info.length_ - p)+1 : p + len;
+        
+      // stay inside bounds 0 to length_
+      size_t l = len == -1 ? info.length_ : p + len >= info.length_ ? info.length_ : p + len;
       if (l != 0) {
         info.piece.erase(p, l);
         info.updateLength();
@@ -119,7 +126,7 @@ namespace MiniDoc {
   }
   
   bool MiniDoc::has_next() const {
-    return info.cursor_ <= info.length_;
+    return info.cursor_ != info.length_;
   }
   
   char MiniDoc::next() {
