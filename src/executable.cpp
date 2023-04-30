@@ -3,10 +3,10 @@
 int main() {
   printf("hi\n");
   
-  MiniDoc::MiniDoc m;
+  MiniDoc::MiniDoc<char> m;
   
-  printf("sizeof MiniDoc: %zu\n", sizeof(MiniDoc::MiniDoc));
-  printf("sizeof MiniDoc::Info: %zu\n", sizeof(MiniDoc::MiniDoc::Info));
+  printf("sizeof MiniDoc: %zu\n", sizeof(MiniDoc::MiniDoc<char>));
+  printf("sizeof MiniDoc::Info: %zu\n", sizeof(MiniDoc::MiniDoc<char>::Info));
  
   m.load("1234");
   m.print();
