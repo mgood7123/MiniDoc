@@ -15,11 +15,10 @@
 
 namespace MiniDoc {
   
-  template <typename char_t>
+  template <typename char_t, char_t new_line>
   class PieceTable {
     private:
     typedef std::basic_string<char_t> string_t;
-    constexpr static char_t char_lf = char_t('\n');
     using buffer_idx_t = uint16_t;
     using iter_func = std::function<void(const char_t *string, size_t length)>;
     enum {
@@ -37,6 +36,7 @@ namespace MiniDoc {
     }
     
     struct Buffer {
+      char_t empty[0];
       const char_t *map_ptr = nullptr;
       // Append-Only Buffer
       std::shared_ptr<string_t> buffer;
@@ -44,7 +44,7 @@ namespace MiniDoc {
       std::vector<uint32_t> lines;
       
       Buffer() {
-        buffer = std::make_shared<string_t>("");
+        buffer = std::make_shared<string_t>(empty);
       }
       
       Buffer(const char_t *ptr, size_t length) {
@@ -54,7 +54,7 @@ namespace MiniDoc {
       inline void set_map(const char_t *ptr, size_t length) {
         map_ptr = ptr;
         for (size_t index = 0; index < length; ++index) {
-          if (ptr[index] == char_lf) {
+          if (ptr[index] == new_line) {
             lines.push_back(index);
           }
         }
@@ -66,7 +66,7 @@ namespace MiniDoc {
         size_t offset = size();
         buffer->append(string);
         for (auto ch : string) {
-          if (ch == char_lf) {
+          if (ch == new_line) {
             lines.push_back(offset);
           }
           offset++;
@@ -512,7 +512,7 @@ namespace MiniDoc {
       auto end = &(m_buffers[piece.buffer][piece.start + piece.length]);
       piece.buffer_lines = 0;
       for (; iter != end; iter++) {
-      if (*iter == char_lf) {
+      if (*iter == new_line) {
       piece.buffer_lines++;
       }
       }*/
@@ -538,11 +538,15 @@ namespace MiniDoc {
       return piece;
     }
     
-    MINIDOC_CACHE_FUNC(cache_line_start, PieceTable<char_t>::line_start);
-    MINIDOC_CACHE_FUNC(cache_line_end, PieceTable<char_t>::line_end);
-    MINIDOC_CACHE_FUNC(cache_length, PieceTable<char_t>::length);
-    MINIDOC_CACHE_FUNC(cache_lines, PieceTable<char_t>::lines);
-    MINIDOC_CACHE_FUNC(cache_find_line, PieceTable<char_t>::find_line);
+    decltype(MiniDoc::CacheHelper::Get("PieceTable<char_t, new_line>::line_start", &PieceTable<char_t, new_line>::line_start)) cache_line_start = MiniDoc::CacheHelper::Get("PieceTable<char_t, new_line>::line_start", &PieceTable<char_t, new_line>::line_start);
+    
+    decltype(MiniDoc::CacheHelper::Get("PieceTable<char_t, new_line>::line_end", &PieceTable<char_t, new_line>::line_end)) cache_line_end = MiniDoc::CacheHelper::Get("PieceTable<char_t, new_line>::line_end", &PieceTable<char_t, new_line>::line_end);
+    
+    decltype(MiniDoc::CacheHelper::Get("PieceTable<char_t, new_line>::length", &PieceTable<char_t, new_line>::length)) cache_length = MiniDoc::CacheHelper::Get("PieceTable<char_t, new_line>::length", &PieceTable<char_t, new_line>::length);
+    
+    decltype(MiniDoc::CacheHelper::Get("PieceTable<char_t, new_line>::lines", &PieceTable<char_t, new_line>::lines)) cache_lines = MiniDoc::CacheHelper::Get("PieceTable<char_t, new_line>::lines", &PieceTable<char_t, new_line>::lines);
+    
+    decltype(MiniDoc::CacheHelper::Get("PieceTable<char_t, new_line>::find_line", &PieceTable<char_t, new_line>::find_line)) cache_find_line = MiniDoc::CacheHelper::Get("PieceTable<char_t, new_line>::find_line", &PieceTable<char_t, new_line>::find_line);
     
     CacheInvalidator caches {&cache_line_start, &cache_line_end, &cache_length, &cache_lines, &cache_find_line};
     

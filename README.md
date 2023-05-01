@@ -8,7 +8,16 @@ see minidoc.h for details
 
 ## basic usage
 
-load a character stream `const char*` and an optional length `size_t`, the input `is not copied`
+first we require a two template paramaters
+
+1. `T` the type to use for data
+2. a `new line` representation of the 1st type
+
+for example `<char, '\n'>`
+
+next
+
+load a character stream `const T*` and an optional length `size_t`, the input `is not copied`
 
 all modifications done to the document are reflected in the obtained output
 
@@ -23,6 +32,8 @@ use `seek` and `character` to obtain the character at the specified position
 for `insert`, `replace`, and `erase` operations, position 0 represents index 0, for zero based index, just like a C array
 
 the position and length are clamped to the bounds of the document (0 to length) in respect to all current modifications done to the document
+
+`append`, `insert`, `replace`, and `erase` operations accept an optional `const std::string & undo_tag`, this van be used to provide additional details about an operation being performed
 
 `append` appends to the `end` of the document
 

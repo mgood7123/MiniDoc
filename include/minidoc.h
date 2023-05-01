@@ -8,12 +8,15 @@
 #include "undo.h"
 
 namespace MiniDoc {
-    template <typename T>
+    template <typename T, T new_line>
     class MiniDoc {
+        T empty[0];
+        T new_line_str[1] { new_line };
         public:
         class Info {
             friend MiniDoc;
-            PieceTable<T> piece;
+            PieceTable<T, new_line> piece;
+            std::string tag;
             T character_;
             size_t cursor_ = 0;
             size_t line_ = 0;
@@ -100,10 +103,15 @@ namespace MiniDoc {
         UndoStackHolder<Info> undoStack();
         
         void append(const T * str);
+        void append(const std::string & undo_tag, const T * str);
         void insert(size_t pos, const T * str);
+        void insert(const std::string & undo_tag, size_t pos, const T * str);
         void replace(size_t pos, const T * str);
+        void replace(const std::string & undo_tag, size_t pos, const T * str);
         void replace(size_t pos, size_t len, const T * str);
+        void replace(const std::string & undo_tag, size_t pos, size_t len, const T * str);
         void erase(size_t pos, size_t len);
+        void erase(const std::string & undo_tag, size_t pos, size_t len);
         
         void print(std::function<void(const T* in, int*outHex, char*outChar)> conv = [](const T * in, int*outHex, char*outChar) { *outHex = (int)*in; *outChar = (char)*in; }) const;
     };
@@ -111,56 +119,93 @@ namespace MiniDoc {
 
 
 
-// source
-
-#include <minidoc.h>
+// source>
 
 #include <stdlib.h> // malloc.h is not portable
 #include <cstring> // strlen
 #include <hexdump.hpp>
 
 namespace MiniDoc {
-    template <typename T>
-    MiniDoc<T>::MiniDoc() {
-        load("");
+    template <typename T, T new_line>
+    MiniDoc<T, new_line>::MiniDoc() {
+        load(empty);
     }
     
-    template <typename T>
-    void MiniDoc<T>::load(std::nullptr_t stream) {
-        load("");
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::load(std::nullptr_t stream) {
+        load(empty, 0);
     }
     
-    template <typename T>
-    void MiniDoc<T>::load(std::nullptr_t stream, size_t length) {
-        load("", length);
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::load(std::nullptr_t stream, size_t length) {
+        load(empty, length);
     }
     
-    template <typename T>
-    void MiniDoc<T>::load(const T* stream) {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::load(const T* stream) {
         load(stream, strlen(stream));
     }
     
-    template <typename T>
-    void MiniDoc<T>::append(const T * str) {
-        insert(-1, str);
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::load(const T* stream, size_t length) {
+        info = {};
+        stack.reset();
+        
+        if (length == 0) {
+            info.piece.append_origin(new_line_str, 1);
+        } else {
+            info.piece.append_origin(stream, length);
+            if (length == 0 || stream[length-1] != new_line) {
+                info.piece.append_origin(new_line_str, 1);
+            }
+        }
+        info.updateLength();
     }
     
-    template <typename T>
-    void MiniDoc<T>::insert(size_t pos, const T * str) {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::append(const T * str) {
+        append("", str);
+    }
+    
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::append(const std::string & undo_tag, const T * str) {
+        insert(undo_tag, -1, str);
+    }
+    
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::insert(size_t pos, const T * str) {
+        insert("", pos, str);
+    }
+    
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::insert(const std::string & undo_tag, size_t pos, const T * str) {
+        info.tag = undo_tag;
         stack.push_undo();
         // stay inside bounds 0 to length_
         info.piece.insert(pos == -1 ? info.length_ : pos >= info.length_ ? info.length_ : pos, str);
         info.updateLength();
     }
     
-    template <typename T>
-    void MiniDoc<T>::replace(size_t pos, const T * str) {
-        replace(pos, 1, str);
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::replace(size_t pos, const T * str) {
+        replace("", pos, str);
     }
     
-    template <typename T>
-    void MiniDoc<T>::replace(size_t pos, size_t len, const T * str) {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::replace(const std::string & undo_tag, size_t pos, const T * str) {
+        replace(undo_tag, pos, 1, str);
+    }
+    
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::replace(size_t pos, size_t len, const T * str) {
+        replace("", pos, len, str);
+    }
+    
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::replace(const std::string & undo_tag, size_t pos, size_t len, const T * str) {
+        info.tag = undo_tag;
         stack.push_undo();
+        
         // stay inside bounds 0 to length_
         size_t p = pos < 0 ? info.length_ : pos >= info.length_ ? info.length_ : pos;
         if (p != info.length_) {
@@ -174,8 +219,14 @@ namespace MiniDoc {
         info.updateLength();
     }
     
-    template <typename T>
-    void MiniDoc<T>::erase(size_t pos, size_t len) {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::erase(size_t pos, size_t len) {
+        erase("", pos, len);
+    }
+    
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::erase(const std::string & undo_tag, size_t pos, size_t len) {
+        info.tag = undo_tag;
         stack.push_undo();
         
         // stay inside bounds 0 to length_
@@ -191,8 +242,8 @@ namespace MiniDoc {
         }
     }
     
-    template <typename T>
-    void MiniDoc<T>::Info::updateLineInfo() {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::Info::updateLineInfo() {
         line_ = piece.get_line(cursor_);
         line_start_ = piece.line_start_cached(line_);
         line_end_ = piece.line_end_cached(line_);
@@ -205,8 +256,8 @@ namespace MiniDoc {
         character_ = piece[cursor_];
     }
     
-    template <typename T>
-    void MiniDoc<T>::Info::updateLength() {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::Info::updateLength() {
         updateLineInfo();
         length_ = piece.length_cached();
         if (length_ > 0) {
@@ -214,24 +265,8 @@ namespace MiniDoc {
         }
     }
     
-    template <typename T>
-    void MiniDoc<T>::load(const T* stream, size_t length) {
-        info = {};
-        stack.reset();
-        
-        if (length == 0) {
-            info.piece.append_origin("\n", 1);
-        } else {
-            info.piece.append_origin(stream, length);
-            if (length == 0 || stream[length-1] != '\n') {
-                info.piece.append_origin("\n", 1);
-            }
-        }
-        info.updateLength();
-    }
-    
-    template <typename T>
-    void MiniDoc<T>::seek(size_t pos) {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::seek(size_t pos) {
         if (pos == info.cursor_) {
             return;
         }
@@ -252,13 +287,13 @@ namespace MiniDoc {
         }
     }
     
-    template <typename T>
-    bool MiniDoc<T>::has_next() const {
+    template <typename T, T new_line>
+    bool MiniDoc<T, new_line>::has_next() const {
         return info.cursor_ != info.length_;
     }
     
-    template <typename T>
-    T MiniDoc<T>::next() {
+    template <typename T, T new_line>
+    T MiniDoc<T, new_line>::next() {
         T ch = character();
         if (has_next()) {
             info.cursor_++;
@@ -267,13 +302,13 @@ namespace MiniDoc {
         return ch;
     }
     
-    template <typename T>
-    bool MiniDoc<T>::has_previous() const {
+    template <typename T, T new_line>
+    bool MiniDoc<T, new_line>::has_previous() const {
         return info.cursor_ != 0;
     }
     
-    template <typename T>
-    T MiniDoc<T>::previous() {
+    template <typename T, T new_line>
+    T MiniDoc<T, new_line>::previous() {
         T ch = character();
         if (has_previous()) {
             info.cursor_--;
@@ -282,31 +317,13 @@ namespace MiniDoc {
         return ch;
     }
     
-    char tmp[2];
-    
-    const char* charToString(char c) {
-        if (c == '\n') {
-            return "<newline>";
-        } else if (c == '\t') {
-            return "<tab>";
-        } else if (c == '\r') {
-            return "<carrage return>";
-        } else if (c == '\0') {
-            return "<null>";
-        } else {
-            tmp[0] = c;
-            tmp[1] = '\0';
-            return tmp;
-        }
-    }
-    
-    template <typename T>
-    void MiniDoc<T>::Info::print(std::function<void(const T* in, int*outHex, char*outChar)> conv) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::Info::print(std::function<void(const T* in, int*outHex, char*outChar)> conv) const {
         print("", conv);
     }
     
-    template <typename T>
-    void MiniDoc<T>::Info::print(const char * indent, std::function<void(const T* in, int*outHex, char*outChar)> conv) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::Info::print(const char * indent, std::function<void(const T* in, int*outHex, char*outChar)> conv) const {
         const T * i = indent == nullptr ? "" : indent;
         printf("%slength: %zu\n", i, length_);
         printf("%scursor: %zu\n", i, cursor_);
@@ -324,210 +341,226 @@ namespace MiniDoc {
         int h;
         char c;
         conv(&character_, &h, &c);
-        printf("%scharacter:  '%s'\n", i, charToString(c));
+        const char * r;
+        char tmp[2];
+        if (c == '\n') {
+            r = "<newline>";
+        } else if (c == '\t') {
+            r = "<tab>";
+        } else if (c == '\r') {
+            r = "<carrage return>";
+        } else if (c == '\0') {
+            r = "<null>";
+        } else {
+            tmp[0] = c;
+            tmp[1] = '\0';
+            r = tmp;
+        }
+        
+        printf("%scharacter:  '%s'\n", i, r);
     }
     
-    template <typename T>
-    T MiniDoc<T>::Info::character() const {
+    template <typename T, T new_line>
+    T MiniDoc<T, new_line>::Info::character() const {
         return character_;
     }
-    template <typename T>
-    size_t MiniDoc<T>::Info::cursor() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::Info::cursor() const {
         return cursor_;
     }
-    template <typename T>
-    size_t MiniDoc<T>::Info::line_start() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::Info::line_start() const {
         return line_start_;
     }
-    template <typename T>
-    size_t MiniDoc<T>::Info::line_end() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::Info::line_end() const {
         return line_end_;
     }
-    template <typename T>
-    size_t MiniDoc<T>::Info::line_length() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::Info::line_length() const {
         return line_length_;
     }
-    template <typename T>
-    size_t MiniDoc<T>::Info::line() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::Info::line() const {
         return line_;
     }
-    template <typename T>
-    size_t MiniDoc<T>::Info::column() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::Info::column() const {
         return column_;
     }
-    template <typename T>
-    size_t MiniDoc<T>::Info::length() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::Info::length() const {
         return length_;
     }
-    template <typename T>
-    T MiniDoc<T>::character() const {
+    template <typename T, T new_line>
+    T MiniDoc<T, new_line>::character() const {
         return info.character();
     }
-    template <typename T>
-    size_t MiniDoc<T>::cursor() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::cursor() const {
         return info.cursor();
     }
-    template <typename T>
-    size_t MiniDoc<T>::line_start() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::line_start() const {
         return info.line_start();
     }
-    template <typename T>
-    size_t MiniDoc<T>::line_end() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::line_end() const {
         return info.line_end();
     }
-    template <typename T>
-    size_t MiniDoc<T>::line_length() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::line_length() const {
         return info.line_length();
     }
-    template <typename T>
-    size_t MiniDoc<T>::line() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::line() const {
         return info.line();
     }
-    template <typename T>
-    size_t MiniDoc<T>::column() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::column() const {
         return info.column();
     }
-    template <typename T>
-    size_t MiniDoc<T>::length() const {
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::length() const {
         return info.length();
     }
     
-    template <typename T>
-    void MiniDoc<T>::Info::line_str(std::basic_string<T> & out) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::Info::line_str(std::basic_string<T> & out) const {
         piece.range_string(line_start_, line_end_, out);
     }
-    template <typename T>
-    void MiniDoc<T>::Info::line_str(std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::Info::line_str(std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
         piece.range_string_func(line_start_, line_end_, out, func);
     }
-    template <typename T>
-    std::basic_string<T> MiniDoc<T>::Info::line_str() const {
+    template <typename T, T new_line>
+    std::basic_string<T> MiniDoc<T, new_line>::Info::line_str() const {
         std::basic_string<T> s;
         line_str(s);
         return s;
     }
-    template <typename T>
-    std::basic_string<T> MiniDoc<T>::Info::line_str(std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
+    template <typename T, T new_line>
+    std::basic_string<T> MiniDoc<T, new_line>::Info::line_str(std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
         std::basic_string<T> s;
         line_str(s, func);
         return s;
     }
     
-    template <typename T>
-    void MiniDoc<T>::line_str(std::basic_string<T> & out) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::line_str(std::basic_string<T> & out) const {
         info.line_str(out);
     }
-    template <typename T>
-    void MiniDoc<T>::line_str(std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::line_str(std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
         info.line_str(out, func);
     }
-    template <typename T>
-    std::basic_string<T> MiniDoc<T>::line_str() const {
+    template <typename T, T new_line>
+    std::basic_string<T> MiniDoc<T, new_line>::line_str() const {
         std::basic_string<T> s;
         line_str(s);
         return s;
     }
-    template <typename T>
-    std::basic_string<T> MiniDoc<T>::line_str(std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
+    template <typename T, T new_line>
+    std::basic_string<T> MiniDoc<T, new_line>::line_str(std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
         std::basic_string<T> s;
         line_str(s, func);
         return s;
     }
     
-    template <typename T>
-    void MiniDoc<T>::Info::str(std::basic_string<T> & out) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::Info::str(std::basic_string<T> & out) const {
         piece.range_string(0, length_, out);
     }
-    template <typename T>
-    void MiniDoc<T>::Info::str(std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::Info::str(std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
         piece.range_string_func(0, length_, out, func);
     }
-    template <typename T>
-    std::basic_string<T> MiniDoc<T>::Info::str() const {
+    template <typename T, T new_line>
+    std::basic_string<T> MiniDoc<T, new_line>::Info::str() const {
         std::basic_string<T> s;
         str(s);
         return s;
     }
-    template <typename T>
-    std::basic_string<T> MiniDoc<T>::Info::str(std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
+    template <typename T, T new_line>
+    std::basic_string<T> MiniDoc<T, new_line>::Info::str(std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
         std::basic_string<T> s;
         str(s, func);
         return s;
     }
     
-    template <typename T>
-    void MiniDoc<T>::str(std::basic_string<T> & out) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::str(std::basic_string<T> & out) const {
         info.str(out);
     }
-    template <typename T>
-    void MiniDoc<T>::str(std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::str(std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
         info.str(out, func);
     }
-    template <typename T>
-    std::basic_string<T> MiniDoc<T>::str() const {
+    template <typename T, T new_line>
+    std::basic_string<T> MiniDoc<T, new_line>::str() const {
         std::basic_string<T> s;
         str(s);
         return s;
     }
-    template <typename T>
-    std::basic_string<T> MiniDoc<T>::str(std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
+    template <typename T, T new_line>
+    std::basic_string<T> MiniDoc<T, new_line>::str(std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
         std::basic_string<T> s;
         str(s, func);
         return s;
     }
     
-    template <typename T>
-    void MiniDoc<T>::Info::sub_str(size_t pos, size_t len, std::basic_string<T> & out) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::Info::sub_str(size_t pos, size_t len, std::basic_string<T> & out) const {
         auto p = pos == -1 ? length_ : pos >= length_ ? length_ : pos;
         piece.range_string(p, p+len, out);
     }
-    template <typename T>
-    void MiniDoc<T>::Info::sub_str(size_t pos, size_t len, std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::Info::sub_str(size_t pos, size_t len, std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
         auto p = pos == -1 ? length_ : pos >= length_ ? length_ : pos;
         piece.range_string_func(p, p+len, out, func);
     }
-    template <typename T>
-    std::basic_string<T> MiniDoc<T>::Info::sub_str(size_t pos, size_t len) const {
+    template <typename T, T new_line>
+    std::basic_string<T> MiniDoc<T, new_line>::Info::sub_str(size_t pos, size_t len) const {
         std::basic_string<T> s;
         sub_str(pos, len, s);
         return s;
     }
-    template <typename T>
-    std::basic_string<T> MiniDoc<T>::Info::sub_str(size_t pos, size_t len, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
+    template <typename T, T new_line>
+    std::basic_string<T> MiniDoc<T, new_line>::Info::sub_str(size_t pos, size_t len, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
         std::basic_string<T> s;
         sub_str(pos, len, s, func);
         return s;
     }
     
-    template <typename T>
-    void MiniDoc<T>::sub_str(size_t pos, size_t len, std::basic_string<T> & out) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::sub_str(size_t pos, size_t len, std::basic_string<T> & out) const {
         info.sub_str(pos, len, out);
     }
-    template <typename T>
-    void MiniDoc<T>::sub_str(size_t pos, size_t len, std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::sub_str(size_t pos, size_t len, std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
         info.sub_str(pos, len, out, func);
     }
-    template <typename T>
-    std::basic_string<T> MiniDoc<T>::sub_str(size_t pos, size_t len) const {
+    template <typename T, T new_line>
+    std::basic_string<T> MiniDoc<T, new_line>::sub_str(size_t pos, size_t len) const {
         std::basic_string<T> s;
         sub_str(pos, len, s);
         
         return s;
     }
-    template <typename T>
-    std::basic_string<T> MiniDoc<T>::sub_str(size_t pos, size_t len, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
+    template <typename T, T new_line>
+    std::basic_string<T> MiniDoc<T, new_line>::sub_str(size_t pos, size_t len, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const {
         std::basic_string<T> s;
         sub_str(pos, len, s, func);
         return s;
     }
     
-    template <typename T>
-    UndoStackHolder<typename MiniDoc<T>::MiniDoc::Info> MiniDoc<T>::undoStack() {
+    template <typename T, T new_line>
+    UndoStackHolder<typename MiniDoc<T, new_line>::MiniDoc::Info> MiniDoc<T, new_line>::undoStack() {
         return stack;
     }
     
-    template <typename T>
-    void MiniDoc<T>::print(std::function<void(const T* in, int*outHex, char*outChar)> conv) const {
+    template <typename T, T new_line>
+    void MiniDoc<T, new_line>::print(std::function<void(const T* in, int*outHex, char*outChar)> conv) const {
         info.print(conv);
         stack.print([&](const Info & i) { i.print("    ", conv); });
         printf("\n");
