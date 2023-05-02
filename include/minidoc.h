@@ -26,6 +26,15 @@ namespace MiniDoc {
             size_t column_ = 0;
             size_t length_ = 0;
             
+            // backtrace info
+            // op 0 = nothing
+            // op 1 = insert
+            // op 2 = replace
+            // op 3 = erase
+            uint8_t bt_op = 0;
+            size_t bt_pos = 0;
+            size_t bt_len = 0;
+            
             void updateLineInfo();
             void updateLength();
             
@@ -38,6 +47,10 @@ namespace MiniDoc {
             size_t line() const;
             size_t column() const;
             size_t length() const;
+            
+            uint8_t btop() const;
+            size_t btpos() const;
+            size_t btlen() const;
             
             void line_str(std::basic_string<T> & out) const;
             void line_str(std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const;
@@ -84,6 +97,9 @@ namespace MiniDoc {
         size_t line() const;
         size_t column() const;
         size_t length() const;
+        uint8_t btop() const;
+        size_t btpos() const;
+        size_t btlen() const;
         
         void line_str(std::basic_string<T> & out) const;
         void line_str(std::basic_string<T> & out, std::function<void(std::basic_string<T> & out, const T *string, size_t length)> func) const;
@@ -164,7 +180,7 @@ namespace MiniDoc {
     
     template <typename T, T new_line>
     void MiniDoc<T, new_line>::append(const T * str) {
-        append("", str);
+        append(std::string("append ") + str, str);
     }
     
     template <typename T, T new_line>
@@ -174,21 +190,26 @@ namespace MiniDoc {
     
     template <typename T, T new_line>
     void MiniDoc<T, new_line>::insert(size_t pos, const T * str) {
-        insert("", pos, str);
+        insert(std::string("insert ") + str + " at position " + std::to_string(pos), pos, str);
     }
     
     template <typename T, T new_line>
     void MiniDoc<T, new_line>::insert(const std::string & undo_tag, size_t pos, const T * str) {
         info.tag = undo_tag;
-        stack.push_undo();
+        
         // stay inside bounds 0 to length_
-        info.piece.insert(pos == -1 ? info.length_ : pos >= info.length_ ? info.length_ : pos, str);
+        size_t p = pos == -1 ? info.length_ : pos >= info.length_ ? info.length_ : pos;
+        info.bt_op = 1;
+        info.bt_pos = p;
+        info.bt_len = 0;
+        stack.push_undo();
+        info.piece.insert(p, str);
         info.updateLength();
     }
     
     template <typename T, T new_line>
     void MiniDoc<T, new_line>::replace(size_t pos, const T * str) {
-        replace("", pos, str);
+        replace(std::string("replace position ") + std::to_string(pos) + " (with a length of 1) with " + str, pos, str);
     }
     
     template <typename T, T new_line>
@@ -198,47 +219,71 @@ namespace MiniDoc {
     
     template <typename T, T new_line>
     void MiniDoc<T, new_line>::replace(size_t pos, size_t len, const T * str) {
-        replace("", pos, len, str);
+        replace(std::string("replace position ") + std::to_string(pos) + " (with a length of " + std::to_string(len) + ") with " + str, pos, len, str);
     }
     
     template <typename T, T new_line>
     void MiniDoc<T, new_line>::replace(const std::string & undo_tag, size_t pos, size_t len, const T * str) {
         info.tag = undo_tag;
-        stack.push_undo();
         
         // stay inside bounds 0 to length_
-        size_t p = pos < 0 ? info.length_ : pos >= info.length_ ? info.length_ : pos;
+        size_t p = pos == -1 ? info.length_ : pos >= info.length_ ? info.length_ : pos;
+        
+        size_t l = 0;
+        
         if (p != info.length_) {
             // stay inside bounds 0 to length_
-            size_t l = len == -1 ? info.length_ : p + len >= info.length_ ? info.length_ : p + len;
-            if (l != 0) {
-                info.piece.erase(p, l);
-            }
+            l = len == -1 ? info.length_ : p + len >= info.length_ ? info.length_ : p + len;
         }
+        if (l != 0) {
+            info.bt_op = 2;
+            info.bt_pos = p;
+            info.bt_len = l;
+        } else {
+            info.bt_op = 1;
+            info.bt_pos = p;
+            info.bt_len = 0;
+        }
+        stack.push_undo();
+        
+        
+        if (l != 0) {
+            info.piece.erase(p, l);
+        }
+        
         info.piece.insert(p, str);
         info.updateLength();
     }
     
     template <typename T, T new_line>
     void MiniDoc<T, new_line>::erase(size_t pos, size_t len) {
-        erase("", pos, len);
+        erase(std::string("erase position ") + std::to_string(pos) + " with a length of " + std::to_string(len), pos, len);
     }
     
     template <typename T, T new_line>
     void MiniDoc<T, new_line>::erase(const std::string & undo_tag, size_t pos, size_t len) {
         info.tag = undo_tag;
-        stack.push_undo();
         
         // stay inside bounds 0 to length_
         size_t p = pos == -1 ? info.length_ : pos >= info.length_ ? info.length_ : pos;
+        
+        size_t l = 0;
+        
         if (p != info.length_) {
-            
             // stay inside bounds 0 to length_
-            size_t l = len == -1 ? info.length_ : p + len >= info.length_ ? info.length_ : p + len;
-            if (l != 0) {
-                info.piece.erase(p, l);
-                info.updateLength();
-            }
+            l = len == -1 ? info.length_ : p + len >= info.length_ ? info.length_ : p + len;
+        }
+        
+        if (l != 0) {
+            info.bt_op = 3;
+            info.bt_pos = p;
+            info.bt_len = l;
+            stack.push_undo();
+            info.piece.erase(p, l);
+            info.updateLength();
+        } else {
+            // erasing zero length does nothing
+            return;
         }
     }
     
@@ -325,6 +370,7 @@ namespace MiniDoc {
     template <typename T, T new_line>
     void MiniDoc<T, new_line>::Info::print(const char * indent, std::function<void(const T* in, int*outHex, char*outChar)> conv) const {
         const T * i = indent == nullptr ? "" : indent;
+        printf("%stag: %s\n", i, tag.c_str());
         printf("%slength: %zu\n", i, length_);
         printf("%scursor: %zu\n", i, cursor_);
         printf("%sline start: %zu\n", i, line_start_);
@@ -393,6 +439,18 @@ namespace MiniDoc {
         return length_;
     }
     template <typename T, T new_line>
+    uint8_t MiniDoc<T, new_line>::Info::btop() const {
+        return bt_op;
+    }
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::Info::btpos() const {
+        return bt_pos;
+    }
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::Info::btlen() const {
+        return bt_len;
+    }
+    template <typename T, T new_line>
     T MiniDoc<T, new_line>::character() const {
         return info.character();
     }
@@ -423,6 +481,18 @@ namespace MiniDoc {
     template <typename T, T new_line>
     size_t MiniDoc<T, new_line>::length() const {
         return info.length();
+    }
+    template <typename T, T new_line>
+    uint8_t MiniDoc<T, new_line>::btop() const {
+        return info.btop();
+    }
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::btpos() const {
+        return info.btpos();
+    }
+    template <typename T, T new_line>
+    size_t MiniDoc<T, new_line>::btlen() const {
+        return info.btlen();
     }
     
     template <typename T, T new_line>
