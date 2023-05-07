@@ -11,6 +11,7 @@ if(NOT COMMAND testBuilder_build)
 endif()
 
 testBuilder_add_include(minidoc include)
+testBuilder_add_include(minidoc darcs-patch/include)
 testBuilder_add_source(minidoc src/empty.cpp)
 testBuilder_build_shared_library(minidoc)
 

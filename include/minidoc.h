@@ -165,7 +165,7 @@ namespace MiniDoc {
         void printDocument(std::function<void(const T* in, int*outHex, char*outChar)> conv = [](const T * in, int*outHex, char*outChar) { *outHex = (int)*in; *outChar = (char)*in; }) const;
     };
     
-    using MiniDoc_T = MiniDoc<char, CharAdapter>;
+    using MiniDoc_T = MiniDoc<char, StringAdapter::CharAdapter>;
 }
 
 

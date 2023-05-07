@@ -16,7 +16,7 @@
 
 namespace MiniDoc {
     
-    template <typename char_t, typename adapter_t, typename std::enable_if<std::is_base_of<BasicStringAdapter<char_t>, adapter_t>::value>::type* = nullptr>
+    template <typename char_t, typename adapter_t, typename std::enable_if<std::is_base_of<StringAdapter::BasicStringAdapter<char_t>, adapter_t>::value>::type* = nullptr>
     class PieceTable {
         private:
         using buffer_idx_t = uint16_t;
