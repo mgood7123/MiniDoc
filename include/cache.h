@@ -5,6 +5,7 @@
 #include <tuple>
 #include <functional>
 #include <vector>
+#include <cinttypes>
 
 namespace MiniDoc {
   

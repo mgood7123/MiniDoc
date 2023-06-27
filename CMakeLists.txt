@@ -10,9 +10,11 @@ if(NOT COMMAND testBuilder_build)
     testBuilder_set_current_working_directory_to_default_binary_directory()
 endif()
 
+add_subdirectory(darcs-patch)
+
 testBuilder_add_include(minidoc include)
-testBuilder_add_include(minidoc darcs-patch/include)
 testBuilder_add_source(minidoc src/empty.cpp)
+testBuilder_add_library(minidoc darcs_patch)
 testBuilder_build_shared_library(minidoc)
 
 testBuilder_add_source(minidoc_exe src/executable.cpp)

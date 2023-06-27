@@ -474,11 +474,11 @@ namespace MiniDoc {
         printf("%sline: %zu\n", i, line_);
         printf("%scolumn: %zu\n", i, column_);
         auto s = line_str();
-        printf("%sline str: %s\n", i, s.c_str());
-        printf("%sline str size: %zu\n", i, s.size());
-        printf("%sline str len: %zu\n", i, s.length());
+        auto c_str = s.c_str();
+        printf("%sline str: %s\n", i, c_str.ptr());
+        printf("%sline str size: %zu\n", i, c_str.length());
         printf("%sline str hex\n", i);
-        std::cout << CustomHexdump<8, true, T>("        ", s.c_str(), s.size(), conv) << std::endl;
+        std::cout << CustomHexdump<8, true, T>("        ", c_str.ptr(), c_str.length(), conv) << std::endl;
         int h;
         char c;
         conv(&character_, &h, &c);
@@ -512,11 +512,11 @@ namespace MiniDoc {
         printf("%slines: %zu\n", i, lines_);
         printf("%slength: %zu\n", i, length_);
         auto s = str();
-        printf("%sdocument: %s\n", i, s.c_str());
-        printf("%sdocument size: %zu\n", i, s.size());
-        printf("%sdocument len: %zu\n", i, s.length());
+        auto c_str = s.c_str();
+        printf("%sdocument: %s\n", i, c_str.ptr());
+        printf("%sdocument len: %zu\n", i, c_str.length());
         printf("%sdocument hex\n", i);
-        std::cout << CustomHexdump<8, true, T>("        ", s.c_str(), s.size(), conv) << std::endl;
+        std::cout << CustomHexdump<8, true, T>("        ", c_str.ptr(), c_str.length(), conv) << std::endl;
     }
     
     MINIDOC_TEMPLATE_DECL

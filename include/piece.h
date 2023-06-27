@@ -12,11 +12,15 @@
 #include <iostream>
 
 #include "cache.h"
-#include "adapter.h"
+#include <string_adapter.h>
 
 namespace MiniDoc {
     
-    template <typename char_t, typename adapter_t, typename std::enable_if<std::is_base_of<StringAdapter::BasicStringAdapter<char_t>, adapter_t>::value>::type* = nullptr>
+    template <
+        typename char_t,
+        typename adapter_t,
+        typename AdapterMustExtendBasicStringAdapter = typename std::enable_if<std::is_base_of<StringAdapter::BasicStringAdapter<char_t>, adapter_t>::value>::type
+    >
     class PieceTable {
         private:
         using buffer_idx_t = uint16_t;
@@ -65,7 +69,7 @@ namespace MiniDoc {
             
             inline void append(const adapter_t &string) {
                 size_t offset = size();
-                buffer->append(string);
+                buffer->append_(string);
                 char_t new_line = string.get_new_line();
                 for (auto ch : string) {
                     if (ch == new_line) {
@@ -573,5 +577,7 @@ namespace MiniDoc {
         std::vector<Buffer> m_buffers;
         std::set<Piece> m_pieces;
     };
+
+    using PieceTable_T = PieceTable<char, StringAdapter::CharAdapter>;
 }
 #endif
