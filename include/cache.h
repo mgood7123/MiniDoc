@@ -3,8 +3,9 @@
 
 #include <type_traits>
 #include <tuple>
-#include <functional>
 #include <vector>
+#include <cinttypes>
+#include <darcs_types.h> // function
 
 namespace MiniDoc {
   
@@ -12,49 +13,53 @@ namespace MiniDoc {
     public:
     
     // intentionally not marked as const
-    //  if you need to invalidate
+    //  if you need to invalidate a const cache
     //   then your probably using the cache wrong
     virtual void invalidate() {};
     virtual ~CacheBase() = default;
   };
   
-  class CacheInvalidator : public CacheBase {
-    std::vector<CacheBase*> caches;
+  /*
+     example usage
+
+        MINIDOC_CACHE_FUNC(cache_length, AdapterPieceTableWithLineInfo::length);
+        MINIDOC_CACHE_FUNC(cache_lines, AdapterPieceTableWithLineInfo::lines);
+        MINIDOC_CACHE_FUNC(cache_line_start, AdapterPieceTableWithLineInfo::line_start);
+        MINIDOC_CACHE_FUNC(cache_line_end, AdapterPieceTableWithLineInfo::line_end);
+
+        CacheInvalidator caches = [](auto * this_) {
+            auto * t = static_cast<AdapterPieceTableWithLineInfo*>(this_);
+            return { t->cache_lines, t->cache_length, t->cache_line_start, t->cache_line_end };
+        };
+
+  */
+  class CacheInvalidator {
+    DarcsPatch::function<std::vector<CacheBase*>(void *)> caches;
     public:
     
-    CacheInvalidator(const std::initializer_list<CacheBase*> & caches) : caches(caches) {}
+    template <typename U>
+    CacheInvalidator(const U & caches) : caches(caches) {}
     
+    CacheInvalidator(const CacheInvalidator & other) {
+      caches = other.caches;
+    }
+    
+    const CacheInvalidator & operator=(const CacheInvalidator & other) {
+      caches = other.caches;
+      return *this;
+    }
+
     // intentionally not marked as const
-    //  if you need to invalidate
+    //  if you need to invalidate a const cache
     //   then your probably using the cache wrong
-    void invalidate() override {
-      for (CacheBase * cache : caches) {
+    void invalidate(void * instance) {
+      auto c = caches(instance);
+      for (CacheBase * cache : c) {
         cache->invalidate();
       }
     }
-    
-    CacheInvalidator(const CacheInvalidator&copy) {
-      //puts("CacheInvalidator COPY");
-    }
-    CacheInvalidator(const CacheInvalidator&&move) {
-      //puts("CacheInvalidator MOVE");
-    }
-    CacheInvalidator&operator=(const CacheInvalidator&copy) {
-      //puts("CacheInvalidator ASSIGN COPY");
-      return *this;
-    }
-    const CacheInvalidator&operator=(const CacheInvalidator&copy) const {
-      //puts("CacheInvalidator ASSIGN COPY CONST");
-      return *this;
-    }
-    CacheInvalidator&operator=(const CacheInvalidator&&move) {
-      //puts("CacheInvalidator ASSIGN MOVE");
-      return *this;
-    }
-    const CacheInvalidator&operator=(const CacheInvalidator&&move) const {
-      //puts("CacheInvalidator MOVE ASSIGN CONST");
-      return *this;
-    }
+
+    virtual ~CacheInvalidator() = default;
   };
   
   //https://stackoverflow.com/a/754754
@@ -62,7 +67,7 @@ namespace MiniDoc {
   template <typename V>
   class CacheNoArgs : public CacheBase {
     mutable V value;
-    std::function<V()> getter;
+    DarcsPatch::function<V()> getter;
     mutable bool invalidated = true;
     mutable uint32_t hits = 0, invalidated_misses = 0;
     const char* name = "default";
@@ -71,13 +76,32 @@ namespace MiniDoc {
     
     CacheNoArgs() = default;
     
-    CacheNoArgs(const char * name, const std::function<V()> & getter) : name(name), getter(getter) {}
+    CacheNoArgs(const char * name, const DarcsPatch::function<V()> & getter) : name(name), getter(getter) {}
+
+    CacheNoArgs(const CacheNoArgs & other) {
+      value = other.value;
+      getter = other.getter;
+      invalidated = other.invalidated;
+      hits = other.hits;
+      invalidated_misses = other.invalidated_misses;
+      name = other.name;
+    }
     
+    const CacheNoArgs & operator=(const CacheNoArgs & other) {
+      value = other.value;
+      getter = other.getter;
+      invalidated = other.invalidated;
+      hits = other.hits;
+      invalidated_misses = other.invalidated_misses;
+      name = other.name;
+      return *this;
+    }
+
     V operator()() const {
       return getCacheValue();
     }
     
-    V getCacheValue() const {
+    V & getCacheValue() const {
       if (invalidated) {
         invalidated_misses++;
         value = getter();
@@ -91,7 +115,7 @@ namespace MiniDoc {
     }
     
     // intentionally not marked as const
-    //  if you need to invalidate
+    //  if you need to invalidate a const cache
     //   then your probably using the cache wrong
     void invalidate() override {
       invalidated = true;
@@ -106,7 +130,7 @@ namespace MiniDoc {
   class CacheArgs : public CacheBase {
     mutable V value;
     mutable std::tuple<Args...> dep;
-    std::function<V(Args...)> getter;
+    DarcsPatch::function<V(Args...)> getter;
     mutable bool invalidated = true;
     mutable uint32_t hits = 0, misses = 0, argument_misses = 0, invalidated_misses = 0;
     const char* name = "default";
@@ -115,13 +139,36 @@ namespace MiniDoc {
     
     CacheArgs() = default;
     
-    CacheArgs(const char * name, const std::function<V(Args...)> & getter) : name(name), getter(getter) {}
+    CacheArgs(const char * name, const DarcsPatch::function<V(Args...)> & getter) : name(name), getter(getter) {}
     
-    V operator()(const Args & ... args) const {
+    CacheArgs(const CacheArgs & other) {
+      value = other.value;
+      dep = other.dep;
+      getter = other.getter;
+      invalidated = other.invalidated;
+      hits = other.hits;
+      misses = other.misses;
+      argument_misses = other.argument_misses;
+      invalidated_misses = other.invalidated_misses;
+      name = other.name;
+    }
+    
+    const CacheArgs & operator=(const CacheArgs & other) {
+      value = other.value;
+      dep = other.dep;
+      getter = other.getter;
+      invalidated = other.invalidated;
+      hits = other.hits;
+      invalidated_misses = other.invalidated_misses;
+      name = other.name;
+      return *this;
+    }
+
+    V & operator()(const Args & ... args) const {
       return getCacheValue(args...);
     }
     
-    V getCacheValue(const Args & ... args) const {
+    V & getCacheValue(const Args & ... args) const {
       if (invalidated) {
         dep = {args...};
         value = getter(args...);
@@ -144,7 +191,7 @@ namespace MiniDoc {
     }
     
     // intentionally not marked as const
-    //  if you need to invalidate
+    //  if you need to invalidate a const cache
     //   then your probably using the cache wrong
     void invalidate() override {
       invalidated = true;

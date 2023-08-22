@@ -2,24 +2,22 @@
 
 a mini document editor
 
-includes both basic and full undo/redo capabilities
+supports `basic` and `advanced` undo/redo
 
-see minidoc.h for details
+built-in `patch dependency system` powered by `Darcs` (Haskell Darcs)
+
+see `minidoc.h` for details
 
 ## basic usage
 
 first we require a two template paramaters
 
-1. `T` the type to use for data
-2. a `new line` representation of the 1st type
+1. `T` the type to use for data, `char_t`
+2. a suitible string adapter, `adapter_t`
 
-for example `<char, '\n'>`
+`MiniDoc_T` is provided as a common case for `MiniDoc<char, StringAdapter::CharAdapter>`
 
-next
-
-load a character stream `const T*` and an optional length `size_t`, the input `is not copied`
-
-all modifications done to the document are reflected in the obtained output
+next, load a character stream `const T*` and an optional length `size_t`, the input `will be copied`
 
 use `sub_str` to copy a range of the output, best used for copying output in chunks, best used for large documents 
 
@@ -29,11 +27,9 @@ use `line` to copy the specified line of the output, best used for line-by-line 
 
 use `seek` and `character` to obtain the character at the specified position
 
-for `insert`, `replace`, and `erase` operations, position 0 represents index 0, for zero based index, just like a C array
+for `insert`, `replace`, and `erase` operations, position 0 represents index 0, uses zero based index, just like a C array
 
 the position and length are clamped to the bounds of the document (0 to length) in respect to all current modifications done to the document
-
-`append`, `insert`, `replace`, and `erase` operations accept an optional `const std::string & undo_tag`, this van be used to provide additional details about an operation being performed
 
 `append` appends to the `end` of the document
 
@@ -85,82 +81,152 @@ if given `-1` for `position`, nothing is done
 
 if given `-1` for `length`, erases all text at and after `position`
 
-`seek`, `next`, `previous`, `has_next`, `has_previous`, and `cursor` can be used for manipulating and monitoring the text cursor inside the document
+`seek`, `seek_line*`, `next`, `previous`, `has_next`, `has_previous`, and `cursor` can be used for manipulating and monitoring the text cursor inside the document
 
-`seek` is clamped to the bounds of the document (0 to length) in respect to all current modifications done to the document
+`seek*` is clamped to the bounds of the document (0 to length/line) in respect to all current modifications done to the document
 
 pass `cursor` as a `position` or a `length`  to implement various capabilities such as deleting text at the cursor (`void backspace() { auto c = cursor(); if (c != 0) erase(c-1, c); }`) and others
 
 `print` prints detailed information about the current state
 
-```
+```cpp
+tag: 
+lines: 1
 length: 1
 cursor: 0
 line start: 0
-line end: 1
-line length: 1
+line end: 2
+line length: 2
 line: 0
 column: 0
 line str: a
 line str size: 1
-line str len: 1
 line str hex
         0x000000: 61                       a
 
 character:  'a'
-undo stack: 1 items
+Undo Stack: 1 items in undo stack
+    undo #0 : Minidoc Command: content: "pple", content2: ""
+Undo Stack: 0 items in redo stack
 
-  undo #0
-    length: 5
-    cursor: 0
-    line start: 0
-    line end: 5
-    line length: 5
-    line: 0
-    column: 0
-    line str: apple
-    line str size: 5
-    line str len: 5
-    line str hex
-        0x000000: 61 70 70 6c 65           apple
+```
 
-    character:  'a'
+### Backtrace/Error
+
+basic error reporting is provided via `error()` and `error(const std::string & message)` functions
+
+an error will trigger a `backtrace` to be collected at the current document `line` as reported by `line()`, starting with the `most recent edit` to occur `on that line`
+
+after the `backtrace` has been collected it will then be printed
+
+```cpp
+    m.append("apples");
+    m.print();
+    m.error("expected ';' at end of file");
+```
+
+```cpp
+tag: 
+lines: 3
+length: 24
+cursor: 18
+line start: 10
+line end: 25
+line length: 15
+line: 2
+column: 8
+line str: occupiedapples
+line str size: 14
+line str hex
+        0x000000: 6f 63 63 75 70 69 65 64  occupied
+        0x000008: 61 70 70 6c 65 73        apples
+
+character:  'a'
+Undo Stack: 12 items in undo stack
+    undo #0 : Minidoc Command: content: "all\nwhere\noccupied", content2: "": { line 0, old lines 1, new lines 3 }
+    undo #1 : Minidoc Command: content: "the\nseats\n", content2: "", hunk: { line 1, old lines 1, new lines 3 }
+    undo #2 : Minidoc Command: content: "clean\n", content2: "", hunk: { line 2, old lines 1, new lines 2 }
+    undo #3 : Minidoc Command: content: "duly\n", content2: "", hunk: { line 5, old lines 1, new lines 2 }
+    undo #4 : Minidoc Command: content: "blue\n", content2: "", hunk: { line 3, old lines 1, new lines 2 }
+    undo #5 : Minidoc Command: content: "seats", content2: "tables", hunk: { line 4, old lines 1, new lines 1 }
+    undo #6 : InvertCommand: Minidoc Command: content: "seats", content2: "tables", hunk: { line 4, old lines 1, new lines 1 }
+    undo #7 : InvertCommand: Minidoc Command: content: "blue\n", content2: "", hunk: { line 3, old lines 2, new lines 1 }
+    undo #8 : InvertCommand: Minidoc Command: content: "duly\n", content2: "", hunk: { line 5, old lines 2, new lines 1 }
+    undo #9 : InvertCommand: Minidoc Command: content: "clean\n", content2: "", hunk: { line 2, old lines 2, new lines 1 }
+    undo #10 : InvertCommand: Minidoc Command: content: "the\nseats\n", content2: "", hunk: { line 1, old lines 3, new lines 1 }
+    undo #11 : Minidoc Command: content: "apples", content2: "", hunk: { line 2, old lines 1, new lines 1 }
+Undo Stack: 0 items in redo stack
 
 
-redo stack: 0 items
+expected ';' at end of file
+      line 1, column 0 : "where\n"
+   at line 2, column 8 : "occupiedapples"
+                                  ^
+printing backtrace...
+ edit #12: before insert: "apples"
+      line 1, column 0 : "where\n"
+   at line 2, column 8 : "occupied"
+                                  ^
+ edit #9: before erase: "duly\n"
+      line 2, column 0 : "clean\n"
+   at line 3, column 4 : "seats\n"
+                              ^
+      line 4, column 0 : "where\n"
+
+ edit #4: before insert: "duly\n"
+      line 4, column 0 : "where\n"
+   at line 5, column 0 : "occupied"
+                          ^
+ edit #1: before insert: "all\nwhere\noccupied"
+   at line 0, column 0 : ""
+                          ^
+ edit #0: ADD FILE
+end of backtrace
 ```
 
 ### Undo Stack <T>
 
 we support both `basic` and `advanced` undo
 
-obtained via `undoStack`, an `UndoStackHolder` ensures the stack itself is not assigned, similar to a `get-only` property
-
 set `supports_redo` to specify if `redo` should be tracked
 
 set `supports_advanced_undo` to toggle between `basic` and `advanced` undo
 
-use `push_undo` to push an `undo` state before modification
+`state` information is automatically saved upon every `edit` operation
 
-use `undo` and `redo` to iterate between these `states`
+use `undo` and `redo` to iterate between saved `states`
+
+the undo stack is displayed via `print`
+
+```cpp
+Undo Stack: 7 items in undo stack
+    undo #0 : Minidoc Command: content: "A", content2: ""
+    undo #1 : Minidoc Command: content: "B", content2: ""
+    undo #2 : Minidoc Command: content: "C", content2: ""
+    undo #3 : InvertCommand: Minidoc Command: content: "C", content2: ""
+    undo #4 : InvertCommand: Minidoc Command: content: "B", content2: ""
+    undo #5 : InvertCommand: Minidoc Command: content: "A", content2: ""
+    undo #6 : Minidoc Command: content: "X", content2: ""
+Undo Stack: 0 items in redo stack
+```
 
 #### Basic
 in `basic` mode, we mimic most/all modern editors:
 
 any edit `erases` the `redo` stack
 
-all `redo states` are `lost` if you `undo` then `push_undo`
+all `redo states` are `lost` if you `undo` then `edit`
 
 #### Advanced
-in `advanced` mode, we fully preserve the `undo/redo` stack upon edit
+in `advanced` mode, we go an extra step to `fully preserve` the `undo/redo` stack upon `edit`
 
 any edit `preserves` the `redo` stack
 
-all `redo states` are `preserved` if you `undo` then `push_undo`
+all `redo states` are `preserved` if you `undo` then `edit`
 
 #### example
 
-```
+```cpp
   m.load("");
   m.append("A");
   // the current undo stack is as follows
